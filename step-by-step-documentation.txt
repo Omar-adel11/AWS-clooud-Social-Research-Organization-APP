@@ -1,0 +1,231 @@
+
+### Step-by-Step Guide
+
+#### Step 1: Create an IAM Role
+
+1. **Access the IAM Console**:
+   - Navigate to the **IAM Management Console** in AWS.
+
+2. **Create a Role**:
+   - Click on **Roles** in the left sidebar.
+   - Click the **Create role** button.
+   - Select **AWS Service** and choose **EC2** as the use case.
+   - Click **Next: Permissions**.
+
+3. **Attach Policies**:
+   - Search for and select the following policies:
+     - `AmazonRDSFullAccess`
+     - `SecretsManagerReadWrite`
+     - `AmazonEC2FullAccess`
+     - `CloudWatchFullAccess`
+   - Click **Next: Tags**, then **Next: Review**.
+
+4. **Name the Role**:
+   - Name your role (e.g., `EC2-RDS-Access-Role`) and click **Create role**.
+
+---
+
+#### Step 2: Create a VPC
+
+1. **Access the VPC Console**:
+   - Navigate to the **VPC Management Console**.
+
+2. **Create a VPC**:
+   - Click on **Your VPCs** and then **Create VPC**.
+   - Choose a name for your VPC (e.g., `MyProjectVPC`).
+   - Set the IPv4 CIDR block (e.g., `10.0.0.0/16`).
+   - Leave other settings as default and click **Create**.
+
+3. **Create Subnets**:
+   - Click on **Subnets** and then **Create subnet**.
+   - Create public and private subnets:
+     - **Public Subnet**: Name it (e.g., `PublicSubnet1`), select your VPC, set the CIDR block (e.g., `10.0.1.0/24`), and choose an Availability Zone.
+     - **Private Subnet**: Name it (e.g., `PrivateSubnet1`), select your VPC, set the CIDR block (e.g., `10.0.2.0/24`), and choose another Availability Zone.
+   - Repeat the process to create additional subnets as needed(private subnets for the database).
+
+4. **Create an Internet Gateway**:
+   - In the VPC dashboard, click on **Internet Gateways** and then **Create internet gateway**.
+   - Name your gateway and click **Create**.
+   - Attach the gateway to your VPC.
+
+5. **Update Route Tables**:
+   - Go to **Route Tables**, select the public route table, and click on **Edit routes**.
+   - Add a route to `0.0.0.0/0` pointing to the Internet Gateway.
+   - For the private route table, ensure it does not have a route to the Internet Gateway.
+
+---
+
+#### Step 3: Create an Aurora Serverless Database
+
+1. **Access RDS Console**:
+   - Navigate to the **RDS Management Console**.
+
+2. **Create Database**:
+   - Click on **Databases** and then **Create database**.
+   - Choose **Amazon Aurora** and select **Aurora MySQL**.
+   - Select **Serverless** for the database type.
+
+3. **Database Settings**:
+   - Set a DB cluster identifier (e.g., `my-aurora-cluster`).
+   - Set the master username and password.
+   - Choose the VPC created earlier and select the private subnets.
+
+4. **Configure Security Group**:
+   - Create a new security group that allows access from the application servers' security group.
+   - Configure inbound rules to allow traffic on port **3306**.
+
+5. **Finish Creation**:
+   - Review your settings and click **Create database**.
+
+---
+
+#### Step 4: Store Credentials in Secrets Manager
+
+1. **Access Secrets Manager**:
+   - Navigate to **Secrets Manager** in the AWS Management Console.
+
+2. **Store a New Secret**:
+   - Click on **Store a new secret**.
+   - Select **Other type of secret** and enter the database username and password.
+   - Name your secret (e.g., `MyAuroraDBCredentials`) and click **Next**.
+
+3. **Configure Secret**:
+   - Add a description and any necessary tags.
+   - Click **Next** and **Store**.
+
+---
+
+#### Step 5: Create an Application Load Balancer
+
+1. **Access EC2 Console**:
+   - Navigate to the **EC2 Management Console**.
+
+2. **Create Load Balancer**:
+   - Click on **Load Balancers** and then **Create Load Balancer**.
+   - Choose **Application Load Balancer**.
+
+3. **Load Balancer Settings**:
+   - Name your load balancer (e.g., `MyAppLoadBalancer`).
+   - Select the VPC and public subnets.
+   - Configure security groups to allow HTTP traffic (port 80).
+
+4. **Configure Listeners**:
+   - Set up a listener for HTTP on port 80.
+   - Click **Next** to review and create the load balancer.
+
+---
+
+#### Step 6: Create an Auto Scaling Group
+
+1. **Create Launch Template**:
+   - In the EC2 dashboard, click on **Launch Templates**.
+   - Click **Create launch template**.
+   - Name your template (e.g., `MyAppLaunchTemplate`).
+   - Choose the AMI (Amazon Linux 2023) and instance type (e.g., `t2.micro`).
+   - Under **Advanced details**, add user data to install the PHP application.
+
+2. **Configure Auto Scaling Group**:
+   - Click on **Auto Scaling Groups** and then **Create Auto Scaling group**.
+   - Use the launch template created earlier.
+   - Select the VPC and private subnets.
+
+3. **Set Scaling Policies**:
+   - Set the minimum and maximum number of instances.
+   - Define a scaling policy based on CPU utilization.
+
+---
+
+#### Step 7: Import Data into the Aurora Database
+
+1. **Access the EC2 Instance**:
+   - SSH into one of your application servers in the Auto Scaling group.
+You can connect using session manager
+
+2. **Import Data**:
+   - Use the MySQL command-line tool to import the SQL dump file into the Aurora database. 
+   - Reference the credentials stored in Secrets Manager for authentication.
+
+   (   mysql -h <Aurora-endpoint> -u <username> -p < database_name < /path/to/dumpfile.sql   )
+   
+
+---
+
+#### Step 8: Test the Application
+
+1. **Access the Application**:
+   - Use the DNS name of the Application Load Balancer to access your PHP web application.
+
+2. **Verify Functionality**:
+   - Test the application by querying the database and ensuring all functionalities are working as expected.
+
+---
+
+
+Describe Security Groups
+
+#### 1. Security Group for the Application Load Balancer (ALB)
+
+**Name**: `ALB-SG`
+
+- **Description**: This security group controls inbound and outbound traffic for the Application Load Balancer.
+  
+- **Inbound Rules**:
+  - **Type**: HTTP
+    - **Protocol**: TCP
+    - **Port Range**: 80
+    - **Source**: `0.0.0.0/0` (allows HTTP access from anywhere)
+  
+- **Outbound Rules**:
+  - **Type**: All traffic
+    - **Protocol**: All
+    - **Port Range**: All
+    - **Destination**: `0.0.0.0/0` (allows all outbound traffic)
+
+---
+
+#### 2. Security Group for EC2 Instances (Application Servers)
+
+**Name**: `AppServer-SG`
+
+- **Description**: This security group controls inbound and outbound traffic for your EC2 instances running the PHP application.
+
+- **Inbound Rules**:
+  - **Type**: HTTP
+    - **Protocol**: TCP
+    - **Port Range**: 80
+    - **Source**: `ALB-SG` (allows traffic from the ALB only)
+  
+  - **Type**: SSH
+    - **Protocol**: TCP
+    - **Port Range**: 22
+    - **Source**: Your IP (e.g., `203.0.113.0/32` for SSH access from your specific IP)
+
+- **Outbound Rules**:
+  - **Type**: All traffic
+    - **Protocol**: All
+    - **Port Range**: All
+    - **Destination**: `0.0.0.0/0` (allows all outbound traffic)
+
+---
+
+#### 3. Security Group for the Aurora Database
+
+**Name**: `RDS-SG`
+
+- **Description**: This security group controls inbound and outbound traffic for the Aurora Serverless database.
+
+- **Inbound Rules**:
+  - **Type**: MySQL/Aurora
+    - **Protocol**: TCP
+    - **Port Range**: 3306
+    - **Source**: `AppServer-SG` (allows traffic from the application servers only)
+
+- **Outbound Rules**:
+  - **Type**: All traffic
+    - **Protocol**: All
+    - **Port Range**: All
+    - **Destination**: `0.0.0.0/0` (allows all outbound traffic)
+
+---
+
+

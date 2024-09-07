@@ -1,0 +1,19 @@
+#!/bin/bash -ex
+ dnf -y update
+ dnf -y install php8.2
+ dnf -y install mariadb105-server
+ dnf install -y php-mysqli
+ cd /var/www/html/
+ wget https://docs.aws.amazon.com/aws-sdk-php/v3/download/aws.zip
+ unzip aws -d /var/www/html
+ wget https://aws-tc-largeobjects.s3.us-west-2.amazonaws.com/CUR-TF-200-ACACAD-3-113230/22-lab-Capstone-project/s3/Example.zip
+ #wget https://aws-tc-largeobjects.s3-us-west-2.amazonaws.com/CUR-TF-200-ACACAD-3-89090/22-lab-course-project/s3/Example.zip
+ unzip Example.zip
+ chkconfig httpd on
+ service httpd start
+ #wget https://aws-tc-largeobjects.s3.us-west-2.amazonaws.com/CUR-TF-200-ACACAD-2/21-course-project/s3/Countrydatadump.sql
+ #chown ec2-user:ec2-user Countrydatadump.sql
+ #cd /var/www/html
+#wget https://aws-tc-largeobjects.s3.us-west-2.amazonaws.com/CUR-TF-200-ACACAD-2/21-course-project/s3/Project.zip
+#unzip Project.zip -d /var/www/html/
+ chown -R ec2-user:ec2-user /var/www/html
